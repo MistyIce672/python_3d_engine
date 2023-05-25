@@ -58,4 +58,3 @@ Install my-project with npm
     #run wireframe will display loaded wireframe while rotating it 
     cube.run_wireframe()
 ```
-
