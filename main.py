@@ -284,10 +284,10 @@ class object():
 cube = object()
 cube.bg_color = (10,10,10)
 cube.line_color = (	31, 81, 255)
-cube.scale = 100
-cube.rotation_speed = 5
+cube.scale = 10
+cube.rotation_speed = 1
 cube.build_speed = 50
-cube.load_wireframe("text.obj")
+cube.load_wireframe("building.obj")
 cube.build("y")
 
 #other examples
