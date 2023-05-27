@@ -93,10 +93,10 @@ class object():
             fx,fy,fz = finish
             scale = self.scale
             z_shift = (scale/2)
-            fx = 400-(fx*scale)
-            fy= 300-(fy*scale)
-            sx = 400-(sx*scale)
-            sy= 300-(sy*scale)
+            fx = 400-(fx)
+            fy= 300-(fy)
+            sx = 400-(sx)
+            sy= 300-(sy)
             sx = sx + (sz*z_shift)
             sy = sy - (sz*z_shift)
             fx = fx + (fz*z_shift)
@@ -248,7 +248,26 @@ class object():
                 self.clear()
                 num = num + 1
                 vertices = self.rotate_x(vertices,self.rotation_speed)
-                faces = self.build_wireframe(vertices,self.links)
+                scalar = 10
+                vectors = vertices
+
+                # Calculate the center point
+                center = [sum(coord) / len(vectors) for coord in zip(*vectors)]
+                print(center)
+
+                # Scale the vectors from the center
+                scaled_vectors = []
+                cx,cy,cz = center
+                for vector in vectors:
+                    x,y,z = vector
+                    dx = cx-x
+                    x = x-(dx*scalar)
+                    dy = cy-y
+                    y = y+(dy*scalar)
+                    
+                    scaled_vectors.append((x,y,z))
+                    
+                faces = self.build_wireframe(scaled_vectors,self.links)
                 self.draw_wireframe(faces)
                 pygame.display.update()
                 dt = clock.tick(5)
@@ -288,7 +307,7 @@ cube.scale = 10
 cube.rotation_speed = 1
 cube.build_speed = 50
 cube.load_wireframe("building.obj")
-cube.build("y")
+cube.run_wireframe()
 
 #other examples
 
