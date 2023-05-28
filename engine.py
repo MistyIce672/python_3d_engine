@@ -10,10 +10,8 @@ height = 600
 clock = pygame.time.Clock()
 bg_color = (0, 0, 0)  
 window = pygame.display.set_mode((width, height))
-
 image = Image.new("RGB", (width, height), bg_color)
 draw = ImageDraw.Draw(image)
-
 
 
 class object():
@@ -22,6 +20,7 @@ class object():
         self.links = None
         self.obj = None
         self.line_color = (255,255,255)
+        self.shade = (44, 114, 178)
         self.scale = 100
         self.rotation_speed = 0
         self.build_speed = 5
@@ -29,6 +28,13 @@ class object():
         self.scaling = {"x":0,"y":0,"z":0}
         self.offset= {"x":0,"y":0,"z":0}
         self.visible = True
+        self.type = "faces"
+
+    def load(self,file):
+        if self.type == "faces":
+            self.load_obj_from_file(file)
+        else:
+            self.load_wireframe(file)
 
     def load_wireframe(self,file):
         with open(file,"r")as f:
@@ -155,35 +161,32 @@ class object():
             new_verts.append(vert)
         return(new_verts)
     
-    def sort(self,items):
-        for count in range(0,len(items)):
-            for count in range(0,len(items)):
-                if count +1 <len(items):
-                    total = 0
-                    next_total = 0
-                    x_offset =0
-                    n_x_offset = 0
-                    y_offset =0
-                    n_y_offset = 0
-                    for vert in items[count]:
-                        x,y,z = vert
-                        total = total + z
-                        x_offset = x_offset + x
-                        y_offset = y_offset + y
-                    for vert in items[count+1]:
-                        x,y,z = vert
-                        next_total = next_total + z
-                        n_x_offset = n_x_offset + x
-                        n_y_offset = n_y_offset + y
-                    if total/len(items[count]) < next_total/len(items[count+1]):
-                        items[count],items[count + 1] = items[count + 1],items[count]
-                    elif total/len(items[count]) == next_total/len(items[count+1]):
-                        if x_offset/len(items[count]) < n_x_offset/len(items[count+1]):
-                            items[count],items[count + 1] = items[count + 1],items[count]
-                    elif x_offset/len(items[count]) == x_offset/len(items[count+1]):
-                        if y_offset/len(items[count]) > n_y_offset/len(items[count+1]):
-                            items[count],items[count + 1] = items[count + 1],items[count]
+    def quik_sort(self,items):
+        items.sort(key=lambda f: (-sum(v[2] for v in f) / len(f), sum(v[1] for v in f) / len(f)))
         return(items)
+
+    def sort(self, items):
+        n = len(items)
+        for i in range(n):
+            for j in range(n - i - 1):
+                total = sum(vert[2] for vert in items[j])
+                next_total = sum(vert[2] for vert in items[j + 1])
+
+                if total / len(items[j]) < next_total / len(items[j + 1]):
+                    items[j], items[j + 1] = items[j + 1], items[j]
+                elif total / len(items[j]) == next_total / len(items[j + 1]):
+                    x_offset = sum(vert[0] for vert in items[j])
+                    n_x_offset = sum(vert[0] for vert in items[j + 1])
+
+                    if x_offset / len(items[j]) < n_x_offset / len(items[j + 1]):
+                        items[j], items[j + 1] = items[j + 1], items[j]
+                    elif x_offset / len(items[j]) == n_x_offset / len(items[j + 1]):
+                        y_offset = sum(vert[1] for vert in items[j])
+                        n_y_offset = sum(vert[1] for vert in items[j + 1])
+
+                        if y_offset / len(items[j]) > n_y_offset / len(items[j + 1]):
+                            items[j], items[j + 1] = items[j + 1], items[j]
+        return items
 
     def build_wireframe(self,verts,network):
         obj = []
@@ -202,7 +205,13 @@ class object():
             obj.append((face))
         return(obj)
     
-    def draw_wireframe(self,window,draw,color=None):
+    def draw(self,window,draw):
+        if self.type == "faces":
+            self.draw_faces(window,draw)
+        else:
+            self.draw_wireframe(window,draw)
+    
+    def draw_wireframe(self,window,draw):
         if self.visible == True:
             vertices = self.vertices
 
@@ -249,38 +258,76 @@ class object():
                 sy = sy - (sz*z_shift)
                 fx = fx + (fz*z_shift)
                 fy = fy - (fz*z_shift)
-                if color == None:
-                    color = self.line_color
+                color = self.line_color
                 pygame.draw.line(window, color, (sx, sy), (fx, fy))
                 line_coordinates = [(sx, sy), (fx, fy)]
                 draw.line(line_coordinates, color, width=1)
     
     def draw_faces(self,window,draw):
-        obj = self.build_faces(self.vertices,self.links)
-        obj = self.sort(obj)
-        color = self.line_color
-        count = 0
-        for face in obj:
-            count += 1
-            new_face = []
-            x
-            for vertex in face:
-                sx,sy,sz = vertex
-                scale = self.scale
-                z_shift = (scale/2)
-                sx = 400-(sx*scale)
-                sy= 300-(sy*scale)
-                sx = sx + (sz*z_shift)
-                sy = sy - (sz*z_shift)
-                new_face.append((sx,sy))
+        if self.visible == True:
+            print("drawing")
+            vertices = self.vertices
 
-            depth = (255/len(obj))*count
-            color = (depth,depth,depth)
-            pygame.draw.polygon(window, color,tuple(new_face) )
-            polygon_color = (255, 0, 0)  # RGB color tuple for red
-            draw.polygon(new_face, fill=polygon_color)
+            if self.rotation["x"] != 0:
+                vertices = self.rotate_y(vertices,self.rotation["x"])
+            if self.rotation["y"] != 0:
+                vertices = self.rotate_x(vertices,self.rotation["y"])
+            if self.rotation["z"] != 0:
+                vertices = self.rotate_z(vertices,self.rotation["z"])
+
+            center = [sum(coord) / len(vertices) for coord in zip(*vertices)]
+            scaled_vectors = []
+            cx,cy,cz = center
+            scalar = self.scale
+            scale = scalar
+            for vector in vertices:
+                x,y,z = vector
+                dx = cx-x
+                x = x-(dx*scalar)
+                dy = cy-y
+                y = y-(dy*scalar)
+                scaled_vectors.append((x,y,z))
+            vertices = scaled_vectors
+
+
             
-
+            if self.offset != {"x":0,"y":0,"z":0}:
+                vertices = self.displace(vertices,self.offset)
+            obj = self.build_faces(vertices,self.links)
+            obj = self.quik_sort(obj)
+            count = 0
+            for face in obj:
+                count += 1
+                new_face = []
+                bigz = face[0][2]
+                smallz = face[0][2]
+                bigy = face[0][0]
+                smally = face[0][0]
+                for vertex in face:
+                    sx,sy,sz = vertex
+                    if sz > bigz:
+                        bigz = sz
+                    if sz < smallz:
+                        smallz = sz
+                    if sy > bigy:
+                        bigy = sx
+                    if sy < smally:
+                        smally = sx
+                    z_shift = (self.scale/2)
+                    scale = 1
+                    sx = 400-(sx*scale)
+                    sy= 300-(sy*scale)
+                    sx = sx + (sz*z_shift)
+                    sy = sy - (sz*z_shift)
+                    new_face.append((sx,sy))
+                if (bigy-smally) != 0:
+                    color = self.line_color
+                else:
+                    color = self.shade
+                pygame.draw.polygon(window, color,tuple(new_face) )
+                polygon_color = color  # RGB color tuple for red
+                draw.polygon(new_face, fill=polygon_color)
+            
 def next_frame(current_frame,window,image):
     image.save(f"output\\{current_frame}.png") 
     window.fill(bg_color)
@@ -291,51 +338,206 @@ def next_frame(current_frame,window,image):
 items = []
 
 one = object()
-one.load_wireframe("novacain\\one.obj")
-
+one.load("novacain\\one.obj")
 
 more = object()
-more.load_wireframe("novacain\\more.obj")
+more.load("novacain\\more.obj")
 
 
 shot = object()
-shot.load_wireframe("novacain\\shot.obj")
+shot.load("novacain\\shot.obj")
+
+cuz = object()
+cuz.load("novacain\\cuz.obj")
+
+feel = object()
+feel.load("novacain\\i feel.obj")
+
+like = object()
+like.load("novacain\\like.obj")
+
+your = object()
+your.load("novacain\\your.obj")
+
+upto = object()
+upto.load("novacain\\up to.obj")
+
+something = object()
+something.load("novacain\\something.obj")
+
+fuck = object()
+fuck.load("novacain\\fuck.obj")
+
+that = object()
+that.load("novacain\\that.obj")
+
+scan = object()
+scan.load("novacain\\scan.obj")
+
+bullet = object()
+bullet.type = "wireframe"
+bullet.load("novacain\\bullet.obj")
 
 
+
+bullet.line_color=(241, 191, 79)
+
+heart = object()
+heart.type = "wireframe"
+heart.load("novacain\\heart.obj")
+
+left = object()
+left.type = "wireframe"
+left.load("novacain\\left.obj")
+
+right = object()
+right.type = "wireframe"
+right.load("novacain\\right.obj")
+
+heart.line_color = (255, 25, 21)
+left.line_color = (255, 25, 21)
+right.line_color = (255, 25, 21)
 
 items.append(one)
 items.append(more)
 items.append(shot)
+items.append(cuz)
+items.append(feel)
+items.append(like)
+items.append(your)
+items.append(upto)
+items.append(something)
+items.append(fuck)
+items.append(that)
+items.append(scan)
+items.append(bullet)
+items.append(heart)
+items.append(left)
+items.append(right)
+
 
 current = 0
-end = 120
+end = 350
 keyframes = {}
 for item in range(current,end+1):
     keyframes[item] = []
 
 template = {"item":one,"location":{"x":0,"y":30,"z":0},"rotation":{"x":200,"y":10,"z":5},"scale":0,"visibility":True}
 
-keyframes[0].append({"item":one,"location":{"x":0,"y":30,"z":0},"rotation":{"x":200,"y":10,"z":5},"scale":0,"visibility":True})
+keyframes[0].append({"item":one,"location":{"x":0,"y":30,"z":0},"rotation":{"x":200,"y":10,"z":5},"scale":0,"visibility":False})
 keyframes[0].append({"item":more,"location":{"x":0,"y":30,"z":0},"rotation":{"x":200,"y":10,"z":5},"scale":0,"visibility":False})
 keyframes[0].append({"item":shot,"location":{"x":600,"y":30,"z":0},"rotation":{"x":200,"y":10,"z":5},"scale":0,"visibility":False})
+keyframes[0].append({"item":cuz,"location":{"x":0,"y":30,"z":0},"rotation":{"x":200,"y":10,"z":5},"scale":120,"visibility":False})
+keyframes[0].append({"item":feel,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":False})
+keyframes[0].append({"item":like,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":False})
+keyframes[0].append({"item":your,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":False})
+keyframes[0].append({"item":upto,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":False})
+keyframes[0].append({"item":something,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":False})
+keyframes[0].append({"item":fuck,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":False})
+keyframes[0].append({"item":that,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":False})
+keyframes[0].append({"item":scan,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":False})
+keyframes[0].append({"item":bullet,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":False})
+keyframes[0].append({"item":heart,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":False})
+keyframes[0].append({"item":left,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":False})
+keyframes[0].append({"item":right,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":False})
 
-keyframes[10].append({"item":one,"location":{"x":0,"y":30,"z":0},"rotation":{"x":200,"y":10,"z":5},"scale":120,"visibility":True})
+keyframes[19].append({"item":one,"location":{"x":0,"y":30,"z":0},"rotation":{"x":200,"y":10,"z":5},"scale":0,"visibility":True})
+keyframes[26].append({"item":one,"location":{"x":0,"y":30,"z":0},"rotation":{"x":200,"y":10,"z":5},"scale":120,"visibility":True})
 
-keyframes[30].append({"item":one,"location":{"x":0,"y":30,"z":0},"rotation":{"x":200,"y":10,"z":5},"scale":120,"visibility":True})
-keyframes[30].append({"item":shot,"location":{"x":-600,"y":30,"z":0},"rotation":{"x":180,"y":0,"z":0},"scale":120,"visibility":True})
+keyframes[45].append({"item":one,"location":{"x":0,"y":30,"z":0},"rotation":{"x":200,"y":10,"z":5},"scale":120,"visibility":True})
+keyframes[45].append({"item":more,"location":{"x":-600,"y":30,"z":0},"rotation":{"x":180,"y":0,"z":0},"scale":120,"visibility":True})
 
-keyframes[38].append({"item":one,"location":{"x":600,"y":30,"z":0},"rotation":{"x":200,"y":10,"z":5},"scale":120,"visibility":True})
-keyframes[38].append({"item":shot,"location":{"x":0,"y":30,"z":0},"rotation":{"x":180,"y":0,"z":0},"scale":120,"visibility":True})
+keyframes[56].append({"item":one,"location":{"x":600,"y":30,"z":0},"rotation":{"x":200,"y":10,"z":5},"scale":120,"visibility":False})
+keyframes[56].append({"item":more,"location":{"x":0,"y":30,"z":0},"rotation":{"x":180,"y":0,"z":0},"scale":120,"visibility":True})
 
-keyframes[120].append({"item":shot,"location":{"x":0,"y":30,"z":0},"rotation":{"x":200,"y":10,"z":5},"scale":120,"visibility":False})
-keyframes[120].append({"item":more,"location":{"x":0,"y":30,"z":0},"rotation":{"x":200,"y":10,"z":5},"scale":120,"visibility":False})
+keyframes[64].append({"item":shot,"location":{"x":600,"y":30,"z":0},"rotation":{"x":200,"y":10,"z":5},"scale":0,"visibility":False})
+keyframes[64].append({"item":more,"location":{"x":0,"y":30,"z":0},"rotation":{"x":180,"y":0,"z":0},"scale":120,"visibility":True})
+
+keyframes[70].append({"item":more,"location":{"x":0,"y":30,"z":0},"rotation":{"x":180,"y":120,"z":0},"scale":120,"visibility":False})
+keyframes[70].append({"item":shot,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":300,"z":0},"scale":120,"visibility":True})
+keyframes[70].append({"item":bullet,"location":{"x":-600,"y":-100,"z":0},"rotation":{"x":180,"y":300,"z":0},"scale":60,"visibility":True})
+
+keyframes[76].append({"item":shot,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":True})
+keyframes[76].append({"item":bullet,"location":{"x":0,"y":-100,"z":0},"rotation":{"x":180,"y":300,"z":0},"scale":60,"visibility":True})
+
+keyframes[80].append({"item":bullet,"location":{"x":600,"y":-100,"z":0},"rotation":{"x":180,"y":300,"z":0},"scale":60,"visibility":True})
+
+keyframes[100].append({"item":shot,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":False})
+keyframes[100].append({"item":cuz,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":True})
+
+keyframes[104].append({"item":cuz,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":True})
+
+keyframes[144].append({"item":cuz,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":False})
+keyframes[144].append({"item":feel,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":True})
+
+keyframes[148].append({"item":feel,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":True})
+
+keyframes[158].append({"item":feel,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":False})
+keyframes[158].append({"item":like,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":True})
+
+keyframes[162].append({"item":like,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":True})
+
+keyframes[166].append({"item":like,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":False})
+keyframes[166].append({"item":your,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":True})
+
+keyframes[170].append({"item":your,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":True})
+
+keyframes[174].append({"item":your,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":False})
+keyframes[174].append({"item":upto,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":True})
+
+keyframes[178].append({"item":upto,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":True})
+
+keyframes[184].append({"item":upto,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":False})
+keyframes[184].append({"item":something,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":True})
+
+keyframes[188].append({"item":something,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":True})
+
+keyframes[208].append({"item":something,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":False})
+keyframes[208].append({"item":fuck,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":True})
+
+keyframes[212].append({"item":fuck,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":True})
+keyframes[214].append({"item":fuck,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":False})
+keyframes[214].append({"item":that,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":True})
+keyframes[218].append({"item":that,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":True})
+keyframes[220].append({"item":that,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":False})
+
+keyframes[220].append({"item":your,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":True})
+#
+keyframes[224].append({"item":your,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":True})
+keyframes[244].append({"item":your,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":False})
+#
+keyframes[244].append({"item":upto,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":True})
+#
+keyframes[248].append({"item":upto,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":True})
+keyframes[254].append({"item":upto,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":False})
+
+keyframes[254].append({"item":something,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":True})
+
+keyframes[258].append({"item":something,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":True})
+keyframes[300].append({"item":something,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":False})
+keyframes[300].append({"item":scan,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":120,"visibility":True})
+keyframes[300].append({"item":heart,"location":{"x":20,"y":-100,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":140,"visibility":True})
+
+keyframes[304].append({"item":heart,"location":{"x":20,"y":-100,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":140,"visibility":False})
+keyframes[304].append({"item":left,"location":{"x":-15,"y":-105,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":140,"visibility":True})
+keyframes[304].append({"item":right,"location":{"x":55,"y":-105,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":140,"visibility":True})
+keyframes[304].append({"item":scan,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":True})
+
+keyframes[315].append({"item":left,"location":{"x":-50,"y":-125,"z":0},"rotation":{"x":180,"y":360,"z":30},"scale":140,"visibility":True})
+keyframes[315].append({"item":right,"location":{"x":90,"y":-125,"z":0},"rotation":{"x":180,"y":360,"z":-30},"scale":140,"visibility":True})
+
+keyframes[340].append({"item":scan,"location":{"x":0,"y":60,"z":0},"rotation":{"x":180,"y":360,"z":0},"scale":130,"visibility":False})
+keyframes[340].append({"item":left,"location":{"x":-50,"y":-125,"z":0},"rotation":{"x":180,"y":360,"z":30},"scale":140,"visibility":False})
+keyframes[340].append({"item":right,"location":{"x":90,"y":-125,"z":0},"rotation":{"x":180,"y":360,"z":-30},"scale":140,"visibility":False})
 
 
-while current < end:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            exit()
+
+current = 0
+
+
+while current < 350:
+    #for event in pygame.event.get():
+    if current < end:
 
         for item in items:
             now = None
@@ -345,6 +547,7 @@ while current < end:
             ff = None
             br = False
             for frame in keyframes:
+
                 if br == True:
                     break
                 for obj in keyframes[frame]:
@@ -367,13 +570,15 @@ while current < end:
                 item.rotation = now['rotation']
                 item.scale = now['scale']
             else:
+                item.visible = start['visibility']
+
                 differnce = ff - sf
                 multiplier = current-sf
 
                 #scale
                 if finish['scale'] - start['scale'] != 0:
                     scale = finish['scale'] - start['scale']
-                    scale = (scale/differnce)*multiplier
+                    scale = start['scale']+((scale/differnce)*multiplier)
                 else:
                     scale = start['scale']
                 item.scale = scale
@@ -420,10 +625,9 @@ while current < end:
                     z = startz+((z/differnce)*multiplier)
                 roation = {"x":x,"y":y,"z":z}
                 item.rotation = roation
-
-
-                
-            item.draw_wireframe(window,draw)
+                    
+            item.draw(window,draw)
+        print("next")
         pygame.display.update()
         draw,image = next_frame(current,window,image)
         current += 1
